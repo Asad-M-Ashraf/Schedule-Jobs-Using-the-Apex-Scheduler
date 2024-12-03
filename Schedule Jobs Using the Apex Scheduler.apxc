@@ -1,0 +1,41 @@
+-----------------------------------------------------DailyLeadProcessor----------------------------------------------
+global class DailyLeadProcessor implements Schedulable {
+    global static void execute(SchedulableContext context){
+        List<Lead> leads = [SELECT id FROM Lead WHERE LeadSource = null LIMIT 200];
+        for (Lead lead: leads){
+            lead.LeadSource = 'Dreamforce';
+        }
+        update leads;
+    }
+}
+
+------------------------------------------------------DailyLeadProcessorTest------------------------------------------
+
+@isTest
+public class DailyLeadProcessorTest {
+    private static string CRON_EXP = '0 0 0 ? * * *';
+	@isTest
+    static void test(){
+        // prepare test data
+        List<Lead> leads = new List<Lead>();
+        for (Integer i = 0; i < 200; i++){
+            leads.add(new Lead(LastName='Test Lead', Company='CCI'));
+        }
+        insert leads;
+        // invoke the queable method
+        // instantiate a new instance of the Queueable class
+        Test.startTest();
+        DailyLeadProcessor scheduledJob = new DailyLeadProcessor();
+        // Seconds Minutes Hours Day_of_month Month Day_of_week optional_year
+		ID jobID = System.schedule('TestSchedule', CRON_EXP, scheduledJob);
+        
+        List<Lead> leadResultBeforeTest = [SELECT id FROM Lead WHERE LeadSource = 'Dreamforce'];
+        Test.stopTest();
+        List<Lead> leadResultAfterTest = [SELECT id FROM Lead WHERE LeadSource = 'Dreamforce'];
+        System.assertEquals(0, leadResultBeforeTest.size());
+        System.assertEquals(200, leadResultAfterTest.size());
+        // check the scheduled time
+        List<CronTrigger> cts = [SELECT id, TimesTriggered, NextFireTime From CronTrigger WHERE Id = :jobId];
+        System.debug('Next Fire Time ' + cts[0].NextFireTime);
+    }
+} 
